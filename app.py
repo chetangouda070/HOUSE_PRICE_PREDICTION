@@ -13,9 +13,11 @@ metadata = None
 model_loaded = False
 
 try:
-    if os.path.exists('house_price_model.pkl') and os.path.exists('house_price_model_metadata.pkl'):
-        model = joblib.load('house_price_model.pkl')
-        metadata = joblib.load('house_price_model_metadata.pkl')
+    if os.path.exists("house_price_model.pkl") and os.path.exists(
+        "house_price_model_metadata.pkl"
+    ):
+        model = joblib.load("house_price_model.pkl")
+        metadata = joblib.load("house_price_model_metadata.pkl")
         model_loaded = True
 except Exception as e:
     print(f"Warning: Could not load model files: {e}")
@@ -23,15 +25,18 @@ except Exception as e:
 app = FastAPI(
     title="House Price Prediction API",
     description="Predict house prices based on area, bedrooms, bathrooms, location, and age",
-    version="1.0.0"
+    version="1.0.0",
 )
+
 
 # Define request/response models
 class HouseFeatures(BaseModel):
     area: int = Field(..., gt=0, le=10000, description="House area in square feet")
     bedrooms: int = Field(..., ge=1, le=10, description="Number of bedrooms")
     bathrooms: int = Field(..., ge=1, le=10, description="Number of bathrooms")
-    location: str = Field(..., description="Location type: Luxury, Urban, Suburb, or Rural")
+    location: str = Field(
+        ..., description="Location type: Luxury, Urban, Suburb, or Rural"
+    )
     age: int = Field(..., ge=0, le=200, description="House age in years")
 
     model_config = {
@@ -41,10 +46,11 @@ class HouseFeatures(BaseModel):
                 "bedrooms": 3,
                 "bathrooms": 2,
                 "location": "Urban",
-                "age": 5
+                "age": 5,
             }
         }
     }
+
 
 class PredictionResponse(BaseModel):
     predicted_price: float
@@ -53,12 +59,15 @@ class PredictionResponse(BaseModel):
     model_version: str
     timestamp: str
 
+
 class BatchPredictionRequest(BaseModel):
     houses: List[HouseFeatures] = Field(..., max_length=100)
+
 
 class BatchPredictionResponse(BaseModel):
     predictions: List[Dict[str, Any]]
     summary: Dict[str, float]
+
 
 class HealthResponse(BaseModel):
     status: str
@@ -66,6 +75,7 @@ class HealthResponse(BaseModel):
     model_type: str
     training_date: str
     performance_metrics: Dict[str, float]
+
 
 @app.get("/")
 def root():
@@ -76,25 +86,27 @@ def root():
             "GET /": "API information",
             "GET /health": "Model health and metrics",
             "POST /predict": "Single house price prediction",
-            "POST /predict/batch": "Batch house price predictions"
+            "POST /predict/batch": "Batch house price predictions",
         },
-        "docs": "/docs"
+        "docs": "/docs",
     }
+
 
 @app.get("/health", response_model=HealthResponse)
 def health():
     if not model_loaded:
         raise HTTPException(
             status_code=503,
-            detail="Model not loaded. Model files are missing or corrupted."
+            detail="Model not loaded. Model files are missing or corrupted.",
         )
     return HealthResponse(
         status="healthy",
         model_loaded=True,
-        model_type=metadata['model_type'],
-        training_date=metadata['training_date'],
-        performance_metrics=metadata['performance_metrics']
+        model_type=metadata["model_type"],
+        training_date=metadata["training_date"],
+        performance_metrics=metadata["performance_metrics"],
     )
+
 
 @app.post("/predict", response_model=PredictionResponse)
 def predict_house_price(house: HouseFeatures):
@@ -102,23 +114,27 @@ def predict_house_price(house: HouseFeatures):
         if not model_loaded:
             raise HTTPException(
                 status_code=503,
-                detail="Model not loaded. Model files are missing or corrupted."
+                detail="Model not loaded. Model files are missing or corrupted.",
             )
-        
-        valid_locations = ['Luxury', 'Urban', 'Suburb', 'Rural']
+
+        valid_locations = ["Luxury", "Urban", "Suburb", "Rural"]
         if house.location not in valid_locations:
             raise HTTPException(
                 status_code=400,
-                detail=f"Invalid location. Must be one of: {valid_locations}"
+                detail=f"Invalid location. Must be one of: {valid_locations}",
             )
 
-        house_data = pd.DataFrame([{
-            'area': house.area,
-            'bedrooms': house.bedrooms,
-            'bathrooms': house.bathrooms,
-            'location': house.location,
-            'age': house.age
-        }])
+        house_data = pd.DataFrame(
+            [
+                {
+                    "area": house.area,
+                    "bedrooms": house.bedrooms,
+                    "bathrooms": house.bathrooms,
+                    "location": house.location,
+                    "age": house.age,
+                }
+            ]
+        )
 
         predicted_price = model.predict(house_data)[0]
         price_per_sqft = predicted_price / house.area
@@ -129,11 +145,12 @@ def predict_house_price(house: HouseFeatures):
             price_per_sqft=round(price_per_sqft, 2),
             confidence_score=confidence_score,
             model_version="1.0.0",
-            timestamp=datetime.now().isoformat()
+            timestamp=datetime.now().isoformat(),
         )
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Prediction error: {str(e)}")
+
 
 @app.post("/predict/batch", response_model=BatchPredictionResponse)
 def predict_house_prices_batch(request: BatchPredictionRequest):
@@ -141,54 +158,59 @@ def predict_house_prices_batch(request: BatchPredictionRequest):
         if not model_loaded:
             raise HTTPException(
                 status_code=503,
-                detail="Model not loaded. Model files are missing or corrupted."
+                detail="Model not loaded. Model files are missing or corrupted.",
             )
-        
+
         predictions = []
 
         for house in request.houses:
-            valid_locations = ['Luxury', 'Urban', 'Suburb', 'Rural']
+            valid_locations = ["Luxury", "Urban", "Suburb", "Rural"]
             if house.location not in valid_locations:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Invalid location for house. Must be one of: {valid_locations}"
+                    detail=f"Invalid location for house. Must be one of: {valid_locations}",
                 )
 
-            house_data = pd.DataFrame([{
-                'area': house.area,
-                'bedrooms': house.bedrooms,
-                'bathrooms': house.bathrooms,
-                'location': house.location,
-                'age': house.age
-            }])
+            house_data = pd.DataFrame(
+                [
+                    {
+                        "area": house.area,
+                        "bedrooms": house.bedrooms,
+                        "bathrooms": house.bathrooms,
+                        "location": house.location,
+                        "age": house.age,
+                    }
+                ]
+            )
 
             predicted_price = model.predict(house_data)[0]
             price_per_sqft = predicted_price / house.area
 
-            predictions.append({
-                "input": house.model_dump(),
-                "predicted_price": round(predicted_price, 2),
-                "price_per_sqft": round(price_per_sqft, 2),
-                "confidence_score": 0.85
-            })
+            predictions.append(
+                {
+                    "input": house.model_dump(),
+                    "predicted_price": round(predicted_price, 2),
+                    "price_per_sqft": round(price_per_sqft, 2),
+                    "confidence_score": 0.85,
+                }
+            )
 
-        prices = [p['predicted_price'] for p in predictions]
+        prices = [p["predicted_price"] for p in predictions]
         summary = {
             "count": len(predictions),
             "mean_price": round(np.mean(prices), 2),
             "median_price": round(np.median(prices), 2),
             "min_price": round(min(prices), 2),
-            "max_price": round(max(prices), 2)
+            "max_price": round(max(prices), 2),
         }
 
-        return BatchPredictionResponse(
-            predictions=predictions,
-            summary=summary
-        )
+        return BatchPredictionResponse(predictions=predictions, summary=summary)
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Batch prediction error: {str(e)}")
 
+
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)
