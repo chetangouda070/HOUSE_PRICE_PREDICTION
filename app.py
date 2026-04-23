@@ -5,13 +5,20 @@ import joblib
 import numpy as np
 import pandas as pd
 from datetime import datetime
+import os
+
+# Load model files if they exist
+model = None
+metadata = None
+model_loaded = False
 
 try:
-    model = joblib.load('house_price_model.pkl')
-    metadata = joblib.load('house_price_model_metadata.pkl')
-except FileNotFoundError as e:
-    print(f"Error loading model files: {e}")
-    exit(1)
+    if os.path.exists('house_price_model.pkl') and os.path.exists('house_price_model_metadata.pkl'):
+        model = joblib.load('house_price_model.pkl')
+        metadata = joblib.load('house_price_model_metadata.pkl')
+        model_loaded = True
+except Exception as e:
+    print(f"Warning: Could not load model files: {e}")
 
 app = FastAPI(
     title="House Price Prediction API",
@@ -27,8 +34,8 @@ class HouseFeatures(BaseModel):
     location: str = Field(..., description="Location type: Luxury, Urban, Suburb, or Rural")
     age: int = Field(..., ge=0, le=200, description="House age in years")
 
-    class Config:
-        schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "area": 1500,
                 "bedrooms": 3,
@@ -37,6 +44,7 @@ class HouseFeatures(BaseModel):
                 "age": 5
             }
         }
+    }
 
 class PredictionResponse(BaseModel):
     predicted_price: float
@@ -46,7 +54,7 @@ class PredictionResponse(BaseModel):
     timestamp: str
 
 class BatchPredictionRequest(BaseModel):
-    houses: List[HouseFeatures] = Field(..., max_items=100)
+    houses: List[HouseFeatures] = Field(..., max_length=100)
 
 class BatchPredictionResponse(BaseModel):
     predictions: List[Dict[str, Any]]
@@ -75,6 +83,11 @@ def root():
 
 @app.get("/health", response_model=HealthResponse)
 def health():
+    if not model_loaded:
+        raise HTTPException(
+            status_code=503,
+            detail="Model not loaded. Model files are missing or corrupted."
+        )
     return HealthResponse(
         status="healthy",
         model_loaded=True,
@@ -86,6 +99,12 @@ def health():
 @app.post("/predict", response_model=PredictionResponse)
 def predict_house_price(house: HouseFeatures):
     try:
+        if not model_loaded:
+            raise HTTPException(
+                status_code=503,
+                detail="Model not loaded. Model files are missing or corrupted."
+            )
+        
         valid_locations = ['Luxury', 'Urban', 'Suburb', 'Rural']
         if house.location not in valid_locations:
             raise HTTPException(
@@ -119,6 +138,12 @@ def predict_house_price(house: HouseFeatures):
 @app.post("/predict/batch", response_model=BatchPredictionResponse)
 def predict_house_prices_batch(request: BatchPredictionRequest):
     try:
+        if not model_loaded:
+            raise HTTPException(
+                status_code=503,
+                detail="Model not loaded. Model files are missing or corrupted."
+            )
+        
         predictions = []
 
         for house in request.houses:
@@ -141,7 +166,7 @@ def predict_house_prices_batch(request: BatchPredictionRequest):
             price_per_sqft = predicted_price / house.area
 
             predictions.append({
-                "input": house.dict(),
+                "input": house.model_dump(),
                 "predicted_price": round(predicted_price, 2),
                 "price_per_sqft": round(price_per_sqft, 2),
                 "confidence_score": 0.85
